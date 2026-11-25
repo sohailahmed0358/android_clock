@@ -5,9 +5,12 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+env:
+  PYTHONFORANDROID_PREREQUISITES_INSTALL_INTERACTIVE: 0
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
@@ -18,28 +21,47 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install system dependencies for Buildozer
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf automake libtool libltdl-dev pkg-config zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev
+          sudo apt-get install -y \
+            build-essential git zip unzip patch ccache \
+            autoconf automake libtool libltdl-dev pkg-config \
+            zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev
 
-      - name: Install Buildozer and Cython
+      - name: Install Buildozer and pinned Cython/Setuptools
         run: |
-          pip install --upgrade pip wheel setuptools
-          pip install --upgrade buildozer cython
+          pip install --upgrade pip wheel
+          pip install "setuptools<81" "cython==0.29.34" buildozer
 
-      - name: Cache Buildozer SDK/NDK and p4a
+      - name: Cache Buildozer SDK/NDK
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.buildozer
-            .buildozer
-          key: buildozer-${{ runner.os }}-v4
+          path: ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
-            buildozer-${{ runner.os }}-v4-
+            buildozer-${{ runner.os }}-
+
+      - name: Verify project files and accept SDK license
+        run: |
+          if [ ! -f main.py ]; then
+            echo "ERROR: main.py not found in repository root!"
+            exit 1
+          fi
+          if [ ! -f buildozer.spec ]; then
+            echo "ERROR: buildozer.spec not found in repository root!"
+            exit 1
+          fi
+          sed -i 's/^#* *android\.accept_sdk_license *=.*/android.accept_sdk_license = True/' buildozer.spec
 
       - name: Build APK with Buildozer
-        run: yes | buildozer android debug
+        run: buildozer -v android debug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
