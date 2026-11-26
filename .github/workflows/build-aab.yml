@@ -1,0 +1,77 @@
+name: Build Release AAB
+
+on:
+  workflow_dispatch:
+
+env:
+  PYTHONFORANDROID_PREREQUISITES_INSTALL_INTERACTIVE: 0
+
+jobs:
+  build-aab:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install system dependencies for Buildozer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential git zip unzip patch ccache \
+            autoconf automake libtool libltdl-dev pkg-config \
+            zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev
+
+      - name: Install Buildozer and pinned Cython/Setuptools
+        run: |
+          pip install --upgrade pip wheel
+          pip install "setuptools<81" "cython==0.29.34" buildozer
+
+      - name: Cache Buildozer SDK/NDK
+        uses: actions/cache@v6
+        with:
+          path: ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Prepare Release Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo -n "$KEYSTORE_BASE64" | base64 -d > "${{ runner.temp }}/release.keystore"
+          echo "P4A_RELEASE_KEYSTORE=${{ runner.temp }}/release.keystore" >> $GITHUB_ENV
+
+      - name: Verify project files and accept SDK license
+        run: |
+          sed -i 's/^#* *android\.accept_sdk_license *=.*/android.accept_sdk_license = True/' buildozer.spec
+
+      - name: Build Signed Release AAB
+        env:
+          P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.KEYSTORE_PASSWORD }}
+          P4A_RELEASE_KEYALIAS_PASSWD: ${{ secrets.KEY_PASSWORD }}
+          P4A_RELEASE_KEYALIAS: ${{ secrets.KEY_ALIAS }}
+        run: buildozer -v android release
+
+      - name: Verify AAB Signature
+        run: |
+          AAB_FILE=$(ls bin/*.aab | head -n 1)
+          echo "Checking signature for: $AAB_FILE"
+          jarsigner -verify "$AAB_FILE"
+
+      - name: Upload Signed AAB artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: analog-clock-aab
+          path: bin/*.aab
