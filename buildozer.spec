@@ -6,13 +6,13 @@
 [app]
 
 # (str) Title of your application
-title = My Application
+title = Analog Clock
 
 # (str) Package name
-package.name = myapp
+package.name = analogclock
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.test
+package.domain = com.sohailahmed
 
 # (str) Source code where the main.py live
 source.dir = .
@@ -313,7 +313,7 @@ android.allow_backup = True
 # android.no-byte-compile-python = False
 
 # (str) The format used to package the app for release mode (aab or apk or aar).
-# android.release_artifact = aab
+android.release_artifact = aab
 
 # (str) The format used to package the app for debug mode (apk or aar).
 # android.debug_artifact = apk
@@ -458,7 +458,7 @@ warn_on_root = 1
 #   Warning: Indented text is treated as a multiline string - i.e.
 #       [app]
 #       title = My Application
-#          package.name = myapp # This is all part of the title.
+#          package.name = My Application # This is all part of the title.
 #
 #   Buildozer's .spec files have some additional features:
 #
